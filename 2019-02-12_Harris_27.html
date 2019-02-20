@@ -590,7 +590,9 @@ df_ms &lt;-<span class="st"> </span>jsonlite<span class="op">::</span><span clas
 <h3>Filter Joined Data</h3>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">df_u3_ms_flt &lt;-<span class="st"> </span>df_u3_ms <span class="op">%&gt;%</span><span class="st"> </span>
 <span class="st">  </span><span class="co"># keep only Detroit and Ann Arbor ZIP codes</span>
-<span class="st">  </span><span class="kw">filter</span>(zip_code <span class="op">%in%</span><span class="st"> </span><span class="kw">c</span>(zips_det, zips_ann))</code></pre></div>
+<span class="st">  </span><span class="kw">filter</span>(zip_code <span class="op">%in%</span><span class="st"> </span><span class="kw">c</span>(zips_det, zips_ann)) <span class="op">%&gt;%</span><span class="st"> </span>
+<span class="st">  </span><span class="co"># get only latest visit</span>
+<span class="st">  </span><span class="kw">get_visit_n</span>(<span class="dt">id_field =</span> ptid, <span class="dt">date_field =</span> form_date, <span class="dt">n =</span> <span class="ot">Inf</span>)</code></pre></div>
 </div>
 </div>
 <div id="write-data" class="section level2">
@@ -614,8 +616,8 @@ df_ms &lt;-<span class="st"> </span>jsonlite<span class="op">::</span><span clas
 ## # Groups:   demented [2]
 ##   demented agit_No agit_Yes
 ##   &lt;chr&gt;      &lt;int&gt;    &lt;int&gt;
-## 1 No           122        9
-## 2 Yes            7       16</code></pre>
+## 1 No            95        5
+## 2 Yes            4       11</code></pre>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">readr<span class="op">::</span><span class="kw">write_csv</span>(demented_agit_summ, <span class="st">&quot;demented_agit_summ.csv&quot;</span>, <span class="dt">na =</span> <span class="st">&quot;&quot;</span>)</code></pre></div>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">(demented_depd_summ &lt;-<span class="st"> </span>df_u3_ms_flt <span class="op">%&gt;%</span><span class="st"> </span>
 <span class="st">  </span><span class="kw">group_by</span>(demented, depd) <span class="op">%&gt;%</span><span class="st"> </span>
@@ -627,8 +629,8 @@ df_ms &lt;-<span class="st"> </span>jsonlite<span class="op">::</span><span clas
 ## # Groups:   demented [2]
 ##   demented depd_No depd_Yes
 ##   &lt;chr&gt;      &lt;int&gt;    &lt;int&gt;
-## 1 No           115       16
-## 2 Yes           15        8</code></pre>
+## 1 No            88       12
+## 2 Yes           10        5</code></pre>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">readr<span class="op">::</span><span class="kw">write_csv</span>(demented_depd_summ, <span class="st">&quot;demented_depd_summ.csv&quot;</span>, <span class="dt">na =</span> <span class="st">&quot;&quot;</span>)</code></pre></div>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">(demented_livsitua_summ &lt;-<span class="st"> </span>df_u3_ms_flt <span class="op">%&gt;%</span><span class="st"> </span>
 <span class="st">  </span><span class="kw">group_by</span>(demented, livsitua) <span class="op">%&gt;%</span><span class="st"> </span>
@@ -640,8 +642,8 @@ df_ms &lt;-<span class="st"> </span>jsonlite<span class="op">::</span><span clas
 ## # Groups:   demented [2]
 ##   demented `livsitua_1 Liv… `livsitua_2 Liv… `livsitua_3 Liv…
 ##   &lt;chr&gt;               &lt;int&gt;            &lt;int&gt;            &lt;int&gt;
-## 1 No                     70               37                3
-## 2 Yes                     2               19               NA
+## 1 No                     52               27                3
+## 2 Yes                     1               12               NA
 ## # … with 3 more variables: `livsitua_3 Lives with one other person: a
 ## #   relative, friend, or roommate` &lt;int&gt;, `livsitua_5 Lives with a group
 ## #   (related or not related) in a private residence` &lt;int&gt;, `livsitua_5
