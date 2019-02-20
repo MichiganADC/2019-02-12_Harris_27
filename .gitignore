@@ -6,7 +6,8 @@
 *.csv
 *.xls
 *.xlsx
-*.pdf
+*.txt
 *.doc
 *.docx
-*.txt
+*.pdf
+*.eml

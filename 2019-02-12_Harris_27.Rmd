@@ -1,0 +1,425 @@
+---
+title: "2019-02-12_Harris_27"
+author: "Nicolas May"
+date: "2/20/2019"
+output: 
+  html_document:
+    theme: sandstone
+    highlight: zenburn
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# BUILD DATASET
+
+
+## Load Requirements
+
+### Load Packages
+
+```{r load_packages}
+library(dplyr)
+library(stringr)
+```
+
+### Load Useful Globals / Functions
+
+```{r load_globals_functions}
+source("~/Desktop/config.R")
+source("~/Desktop/helpers.R")
+
+GET_API_DATA <- TRUE
+```
+
+
+## Get Data
+
+### Define Data Fields/Forms
+
+#### UDS 3
+
+```{r}
+# Header form
+fields_u3_hd_vct <-
+  c(
+    "ptid"
+    , "form_date"
+  )
+# A1 form
+fields_u3_a1_vct <-
+  c(
+    "livsitua"
+    # , "zip"
+  ) %>% 
+  c(., paste0("fu_", .), paste0("tele_", .))
+# B5 form
+fields_u3_b5_vct <-
+  c(
+    "agit"
+    , "depd"
+  ) %>% 
+  c(., paste0("fu_", .), paste0("tele_", .))
+# D1 form
+fields_u3_d1_vct <-
+  c(
+    "normcog"
+    , "demented"
+  ) %>% 
+  c(., paste0("fu_", .), paste0("tele_", .))
+
+# Collapse `fields_u3_*_vct`s
+fields_u3_vct <-
+  c(
+    fields_u3_hd_vct
+    , fields_u3_a1_vct
+    , fields_u3_b5_vct
+    , fields_u3_d1_vct
+  )
+fields_u3 <- fields_u3_vct %>% paste(collapse = ",")
+```
+
+#### MiNDSet Registry
+
+```{r}
+fields_ms_hd_vct <-
+  c(
+    "subject_id"
+    , "exam_date"
+    , "zip_code"
+  )
+
+# Collapse `fields_ms_*_vct`s
+fields_ms_vct <-
+  c(
+    fields_ms_hd_vct
+  ) 
+fields_ms <- fields_ms_vct %>% paste(collapse = ",")
+
+
+# ZIP code vectors
+# sources: 
+# 1. https://zipcode.org/city/MI/DETROIT
+# 2. https://zipcode.org/city/MI/ANNARBOR
+
+# Detroit ZIP codes
+zips_det <-
+  c(
+    "48201"
+    , "48202"
+    , "48206"
+    , "48207"
+    , "48208"
+    , "48209"
+    , "48213"
+    , "48214"
+    , "48215"
+    , "48217"
+    , "48219"
+    , "48222"
+    , "48223"
+    , "48224"
+    , "48204"
+    , "48205"
+    , "48210"
+    , "48211"
+    , "48216"
+    , "48221"
+    , "48226"
+    , "48227"
+    , "48228"
+    , "48231"
+    , "48238"
+    , "48243"
+    , "48244"
+    , "48255"
+    , "48265"
+    , "48266"
+    , "48269"
+    , "48272"
+    , "48275"
+    , "48277"
+    , "48232"
+    , "48233"
+    , "48234"
+    , "48235"
+    , "48242"
+    , "48260"
+    , "48264"
+    , "48267"
+    , "48268"
+    , "48278"
+    , "48279"
+    , "48288"
+  )
+
+# Ann Arbor ZIP codes
+zips_ann <-
+  c(
+    "48103"
+    , "48104"
+    , "48105"
+    , "48109"
+    , "48113"
+    , "48106"
+    , "48107"
+    , "48108"
+  )
+```
+
+### Retrieve Data via REDCAP API
+
+#### UDS 3
+
+```{r}
+json_u3 <- rc_api_get(uri    = REDCAP_API_URI,
+                      token  = REDCAP_API_TOKEN_UDS3n,
+                      fields = fields_u3,
+                      raw    = FALSE)
+df_u3 <- jsonlite::fromJSON(json_u3) %>% na_if("")
+```
+
+#### MiNDSet Registry
+
+```{r}
+json_ms <- rc_api_get(uri    = REDCAP_API_URI,
+                      token  = REDCAP_API_TOKEN_MINDSET,
+                      fields = fields_ms,
+                      raw    = FALSE)
+df_ms <- jsonlite::fromJSON(json_ms) %>% na_if("")
+```
+
+
+## Process Data
+
+### Clean Data
+
+#### UDS 3
+
+```{r}
+df_u3_cln <- df_u3 %>% 
+  # clean out records missing `form_date`s
+  filter(!is.na(form_date)) %>% 
+  # clean out DDE records
+  filter(str_detect(ptid, pattern = "^UM\\d{8}$")) %>% 
+  # remove useless `redcap_event_name` field
+  select(-redcap_event_name)
+```
+
+#### MiNDSet Registry
+
+```{r}
+df_ms_cln <- df_ms %>% 
+  # clean out missing `exam_date`s
+  filter(!is.na(exam_date)) %>% 
+  # clean out non UMMAP IDs
+  filter(str_detect(subject_id, pattern = "^UM\\d{8}$")) %>% 
+  # remove useless `redcap_event_name` field
+  select(-redcap_event_name)
+```
+
+
+### Mutate Data
+
+#### UDS 3
+
+```{r}
+df_u3_cln_mut <- df_u3_cln %>% 
+  # coalesce IVP / FVP / TVP fields
+  coalesce_ift_cols() %>% 
+  # retype fields appropriately
+  mutate(form_date = as.Date(form_date)) %>% 
+  # clean up labelled data values
+  mutate(normcog  = str_extract(normcog, "(No|Yes)"),
+         demented = str_extract(demented, "(No|Yes)"),
+         agit     = str_extract(agit, "(No|Yes)"),
+         depd     = str_extract(depd, "(No|Yes)")) %>% 
+  # if `normcog` is yes, `demented` is no
+  mutate(demented = case_when(
+    is.na(demented) & normcog == "Yes" ~ "No",
+    TRUE ~ demented
+  ))
+```
+
+#### MiNDSet Registry
+
+```{r}
+df_ms_cln_mut <- df_ms_cln %>% 
+  # retype fields appropriately
+  mutate(exam_date = as.Date(exam_date)) %>% 
+  # get just 5-digit ZIP codes
+  mutate(zip_code = str_sub(zip_code, 1, 5)) 
+```
+
+### Join Data
+
+#### Left Outer Join: UDS 3 + MiNDSet Registry
+
+```{r}
+df_u3_ms <-
+  FuzzyDateJoin::outer_left(
+    x = df_u3_cln_mut,        y = df_ms_cln_mut,
+    x_id_col = "ptid",        y_id_col = "subject_id",
+    x_date_col = "form_date", y_date_col = "exam_date",
+    x_intvl_less = 365L, x_intvl_more = 365L,
+    keep_y_id = FALSE
+  )
+```
+
+### Filter Joined Data
+
+```{r}
+df_u3_ms_flt <- df_u3_ms %>% 
+  # keep only Detroit and Ann Arbor ZIP codes
+  filter(zip_code %in% c(zips_det, zips_ann))
+```
+
+
+## Write Data
+
+### Write as CSV
+
+```{r}
+readr::write_csv(df_u3_ms_flt, "df_u3_ms_flt.csv", na = "")
+```
+
+
+## Summarize Data
+
+### Dementia x Agitation (`demented` x `agit`)
+
+```{r}
+(demented_agit_summ <- df_u3_ms_flt %>% 
+   group_by(demented, agit) %>% 
+   tally() %>% 
+   filter(!is.na(demented), !is.na(agit)) %>% 
+   arrange(demented, agit) %>% 
+   tidyr::spread(key = agit, value = n, sep = "_"))
+
+readr::write_csv(demented_agit_summ, "demented_agit_summ.csv", na = "")
+```
+
+```{r}
+(demented_depd_summ <- df_u3_ms_flt %>% 
+  group_by(demented, depd) %>% 
+  tally() %>% 
+  filter(!is.na(demented), !is.na(depd)) %>%
+  arrange(demented, depd) %>% 
+  tidyr::spread(key = depd, value = n, sep = "_"))
+
+readr::write_csv(demented_depd_summ, "demented_depd_summ.csv", na = "")
+```
+
+```{r}
+(demented_livsitua_summ <- df_u3_ms_flt %>% 
+  group_by(demented, livsitua) %>% 
+  tally() %>% 
+  filter(!is.na(demented), !is.na(livsitua)) %>% 
+  arrange(demented, livsitua) %>% 
+  tidyr::spread(key = livsitua, value = n, sep = "_"))
+
+readr::write_csv(demented_livsitua_summ, "demented_livsitua_summ.csv", na = "")
+```
+
+
+# BUILD DATA DICTIONARIES
+
+
+## Get Data Dictionaries
+
+### Define Data Fields
+
+These are already defined: `fields_u3_vct` for UDS 3 and `fields_ms_vct` for MiNDSet Registry.
+
+### Get Data Dictionaries via REDCap API
+
+#### UDS 3
+
+```{r}
+json_dd_u3 <- RCurl::postForm(
+  uri          = REDCAP_API_URI,
+  token        = REDCAP_API_TOKEN_UDS3n,
+  content      = "metadata",
+  format       = "json",
+  returnFormat = "json"
+)
+
+df_dd_u3 <- jsonlite::fromJSON(json_dd_u3)
+```
+
+#### MiNDSet Registry
+
+```{r}
+json_dd_ms <- RCurl::postForm(
+  uri          = REDCAP_API_URI,
+  token        = REDCAP_API_TOKEN_MINDSET,
+  content      = "metadata",
+  format       = "json",
+  returnFormat = "json"
+)
+
+df_dd_ms <- jsonlite::fromJSON(json_dd_ms)
+```
+
+## Filter Data Dictionaries
+
+#### UDS 3
+
+```{r}
+df_dd_u3_flt <- df_dd_u3 %>% 
+  filter(field_name %in% fields_u3_vct)
+```
+
+#### MiNDSet Registry
+
+```{r}
+df_dd_ms_flt <- df_dd_ms %>% 
+  filter(field_name %in% fields_ms_vct)
+```
+
+
+## Write Data Dictionaries
+
+#### UDS 3
+
+```{r}
+readr::write_csv(df_dd_u3_flt, "DataDictionary_UDS3.csv", na = "")
+```
+
+#### MiNDSet Registry
+
+```{r}
+readr::write_csv(df_dd_ms_flt, "DataDictionary_MiNDSetRegistry.csv", na = "")
+```
+
+```{r extra_space, echo=FALSE}
+###@    #==--  :  --==#    @##==---==##@##==---==##@    #==--  :  --==#    @###
+#==##@    #==-- --==#    @##==---==##@   @##==---==##@    #==-- --==#    @##==#
+#--==##@    #==-==#    @##==---==##@   #   @##==---==##@    #==-==#    @##==--#
+#=---==##@    #=#    @##==---==##@    #=#    @##==---==##@    #=#    @##==---=#
+##==---==##@   #   @##==---==##@    #==-==#    @##==---==##@   #   @##==---==##
+#@##==---==##@   @##==---==##@    #==-- --==#    @##==---==##@   @##==---==##@#
+#  @##==---==##@##==---==##@    EXTRA  :  SPACE    @##==---==##@##==---==##@  #
+#@##==---==##@   @##==---==##@    #==-- --==#    @##==---==##@   @##==---==##@#
+##==---==##@   #   @##==---==##@    #==-==#    @##==---==##@   #   @##==---==##
+#=---==##@    #=#    @##==---==##@    #=#    @##==---==##@    #=#    @##==---=#
+#--==##@    #==-==#    @##==---==##@   #   @##==---==##@    #==-==#    @##==--#
+#==##@    #==-- --==#    @##==---==##@   @##==---==##@    #==-- --==#    @##==#
+###@    #==--  :  --==#    @##==---==##@##==---==##@    #==--  :  --==#    @###
+#==##@    #==-- --==#    @##==---==##@   @##==---==##@    #==-- --==#    @##==#
+#--==##@    #==-==#    @##==---==##@   #   @##==---==##@    #==-==#    @##==--#
+#=---==##@    #=#    @##==---==##@    #=#    @##==---==##@    #=#    @##==---=#
+##==---==##@   #   @##==---==##@    #==-==#    @##==---==##@   #   @##==---==##
+#@##==---==##@   @##==---==##@    #==-- --==#    @##==---==##@   @##==---==##@#
+#  @##==---==##@##==---==##@    EXTRA  :  SPACE    @##==---==##@##==---==##@  #
+#@##==---==##@   @##==---==##@    #==-- --==#    @##==---==##@   @##==---==##@#
+##==---==##@   #   @##==---==##@    #==-==#    @##==---==##@   #   @##==---==##
+#=---==##@    #=#    @##==---==##@    #=#    @##==---==##@    #=#    @##==---=#
+#--==##@    #==-==#    @##==---==##@   #   @##==---==##@    #==-==#    @##==--#
+#==##@    #==-- --==#    @##==---==##@   @##==---==##@    #==-- --==#    @##==#
+###@    #==--  :  --==#    @##==---==##@##==---==##@    #==--  :  --==#    @###
+```
